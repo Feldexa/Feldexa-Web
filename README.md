@@ -22,6 +22,6 @@ Planned freemium model with optional one-time watermark-free export. No subscrip
 
 - [Privacy Principles](docs/privacy-principles.md)
 - [Public Roadmap](docs/roadmap.md)
-- [GitHub Wiki](https://github.com/xxammaxx/Feldexa-Web/wiki)
+- [GitHub Wiki](https://github.com/Feldexa/Feldexa-Web/wiki)
 
 Feldexa is developed privately. This repository contains public-safe product information only.
