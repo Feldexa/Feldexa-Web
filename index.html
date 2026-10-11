@@ -1,32 +1,128 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Feldexa turns scanned, non-fillable forms into reusable smart forms on Android.">
-    <title>Feldexa · Local smart forms for Android</title>
+    <meta name="description" content="Nicht ausfüllbares PDF? Feldexa öffnet gescannte Formulare auf Android, schlägt Felder lokal auf dem Gerät vor und führt Sie Schritt für Schritt durchs Ausfüllen – ohne Cloud.">
+    <meta name="theme-color" content="#0c6874">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:title" content="Feldexa – nicht ausfüllbares PDF auf Android ausfüllen">
+    <meta property="og:description" content="PDF bekommen. Feldexa öffnen. Ausfüllen. Fertig. Lokale Felderkennung und geführtes Ausfüllen auf dem Android-Gerät.">
+    <title>Feldexa · Nicht ausfüllbares PDF auf Android ausfüllen</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
+
     <main id="main-content" class="shell">
-      <p class="eyebrow">FELDEXA · ANDROID</p>
-      <h1>Forms that stay yours.</h1>
-      <p class="lead">Feldexa is building a calm, privacy-first way to turn scanned, non-fillable PDF forms into reusable smart forms.</p>
+      <p class="eyebrow">FELDEXA · ANDROID · IN ENTWICKLUNG</p>
+      <h1>PDF bekommen. Ausfüllen. Fertig.</h1>
+      <p class="lead">
+        Sie erhalten ein PDF-Formular, das sich am Handy nicht ausfüllen lässt: gescannt oder gedruckt,
+        ohne echte Formularfelder. Feldexa soll genau dieses Formular auf Android öffnen, Felder lokal
+        auf dem Gerät vorschlagen und Sie Schritt für Schritt durchs Ausfüllen führen – bis am Ende ein
+        normales, ausgefülltes PDF entsteht.
+      </p>
+
+      <nav class="anchors" aria-label="Abschnitte dieser Seite">
+        <a href="#problem">Problem</a>
+        <a href="#ablauf">Ablauf</a>
+        <a href="#prinzip">Datenschutz</a>
+        <a href="#erkennung">Erkennung</a>
+        <a href="#preis">Preis</a>
+        <a href="#fragen">Fragen</a>
+      </nav>
+
       <div class="panel">
-        <p class="status">Currently in development</p>
-        <p>Import a form, review automatically suggested fields, fill it on your device, and export a usable PDF. The core workflow is designed for local processing without uploading document content.</p>
+        <p class="status">Status: in Entwicklung – noch nicht zum Download verfügbar</p>
+        <p>
+          Feldexa befindet sich im Aufbau. Was hier steht, beschreibt den geplanten Kernablauf und ist
+          noch kein fertiges Produkt. Sobald eine Version verfügbar ist, wird sie hier angekündigt.
+        </p>
       </div>
-      <div class="grid">
-        <section aria-labelledby="android-first"><h2 id="android-first">Android first</h2><p>Designed for Android 12 and later, with German and English support planned for V1.</p></section>
-        <section aria-labelledby="privacy-by-design"><h2 id="privacy-by-design">Privacy by design</h2><p>PDFs, OCR text, answers, and signatures are intended to remain on the device during the core workflow.</p></section>
-        <section aria-labelledby="planned-model"><h2 id="planned-model">Planned model</h2><p>Freemium with an optional one-time purchase for watermark-free exports. No subscription is planned for V1.</p></section>
-      </div>
+
+      <section id="problem" aria-labelledby="problem-h">
+        <h2 id="problem-h">Das Problem: nicht ausfüllbare Formulare</h2>
+        <p>
+          Behörden, Kassen, Vermieter und Schulen verschicken Formulare als gescanntes oder flaches PDF.
+          Ein Textprogramm hilft nicht, ein PDF-Editor legt bestenfalls einzelne Textboxen über die
+          Seite, die man von Hand setzen muss. Am Telefon ist das mühsam: Man zoomt, trifft die Zeile
+          nicht, verliert den Überblick – oder druckt doch wieder aus.
+        </p>
+        <p>
+          Genau diese eine Aufgabe nimmt sich Feldexa vor – und nichts anderes. Feldexa ist kein
+          allgemeiner PDF-Editor und will keiner werden.
+        </p>
+      </section>
+
+      <section id="ablauf" aria-labelledby="ablauf-h">
+        <h2 id="ablauf-h">So soll Feldexa arbeiten</h2>
+        <ol class="steps">
+          <li><strong>Öffnen</strong> – das PDF über „Öffnen mit“, „Teilen“ oder die Dateiauswahl an Feldexa geben. Kein Zugriff auf den gesamten Speicher.</li>
+          <li><strong>Lokal analysieren</strong> – Feldexa liest die Seite auf dem Gerät und schlägt Felder an Linien, Kästchen und Leerflächen vor.</li>
+          <li><strong>Prüfen und korrigieren</strong> – unsichere Vorschläge bleiben sichtbar unsicher. Sie können bestätigen, löschen, ergänzen, verschieben und die Feldart ändern.</li>
+          <li><strong>Ausfüllen und exportieren</strong> – Feld für Feld mit „Weiter“, dann als normales PDF speichern oder teilen.</li>
+        </ol>
+      </section>
+
+      <section id="prinzip" aria-labelledby="prinzip-h">
+        <h2 id="prinzip-h">Lokal auf dem Gerät</h2>
+        <p>
+          Der Kernablauf ist für lokale Verarbeitung ausgelegt: Import, Analyse, Ausfüllen und Export
+          sollen ohne Internetverbindung funktionieren. PDF-Inhalte, erkannter Text, Feldwerte und
+          Unterschriften sollen das Gerät nicht verlassen. Technische Diagnosedaten sind so gedacht,
+          dass sie keine Dokumentinhalte enthalten.
+        </p>
+        <p class="note">
+          Diese Prinzipien sind Produktvorgaben, kein fertiges Merkmal. Sie ersetzen weder die spätere
+          Datenschutzerklärung in der App noch die Angaben im Play Store.
+        </p>
+      </section>
+
+      <section id="erkennung" aria-labelledby="erkennung-h">
+        <h2 id="erkennung-h">Vorschlag, nicht Wahrheit</h2>
+        <p>
+          Automatisch erkannte Felder sind Vorschläge, keine Tatsachen. Ziel ist, Arbeit zu verringern –
+          nicht, Sie in einer Automatik festzuhalten. Jede Erkennung soll prüfbar und korrigierbar
+          bleiben: falsch erkannte Felder löschbar, übersehene Felder ergänzbar.
+        </p>
+      </section>
+
+      <section id="preis" aria-labelledby="preis-h">
+        <h2 id="preis-h">Preis: geplant ohne Abo</h2>
+        <p>
+          Geplant ist ein Einmalkauf. Kein Abonnement, keine wiederkehrende Gebühr. Über Umfang und
+          Bedingungen der kostenlosen Nutzung wird noch entschieden; ein Preis wird erst genannt, wenn
+          er feststeht.
+        </p>
+      </section>
+
+      <section id="fragen" aria-labelledby="fragen-h">
+        <h2 id="fragen-h">Häufige Fragen</h2>
+        <dl class="faq">
+          <dt>Ist Feldexa schon verfügbar?</dt>
+          <dd>Nein. Feldexa ist in Entwicklung und noch nicht als Download erhältlich.</dd>
+          <dt>Muss ich mein PDF hochladen?</dt>
+          <dd>Der geplante Kernablauf arbeitet auf dem Gerät. Dokumente sollen nicht in eine Cloud geladen werden.</dd>
+          <dt>Erkennt Feldexa Felder automatisch?</dt>
+          <dd>Das ist das Ziel der lokalen Analyse. Die Erkennung liefert Vorschläge, die Sie prüfen und korrigieren. Ein Qualitätsziel für die Erkennung ist noch nicht abgeschlossen.</dd>
+          <dt>Funktioniert es mit eingescannten Formularen?</dt>
+          <dd>Genau dafür ist Feldexa gedacht: flache oder eingescannte Seiten ohne echte Formularfelder.</dd>
+          <dt>Wird es ein Abonnement geben?</dt>
+          <dd>Nein, geplant ist ein Einmalkauf.</dd>
+          <dt>Welche Android-Version?</dt>
+          <dd>Geplant sind Android 12 und neuer, mit deutscher und englischer Oberfläche.</dd>
+        </dl>
+      </section>
+
       <footer>
-        <nav aria-label="Public links">
-          <a href="https://github.com/Feldexa/Feldexa-Web">Public repository</a>
+        <nav aria-label="Öffentliche Links">
+          <a href="https://github.com/Feldexa/Feldexa-Web">Öffentliches Repository</a>
           <span aria-hidden="true">·</span>
-          <a href="https://github.com/Feldexa/Feldexa-Web/wiki">Wiki</a>
+          <a href="https://github.com/Feldexa/Feldexa-Web/blob/main/docs/privacy-principles.md">Datenschutz-Grundsätze</a>
+          <span aria-hidden="true">·</span>
+          <a href="https://github.com/Feldexa/Feldexa-Web/blob/main/docs/roadmap.md">Roadmap</a>
         </nav>
       </footer>
     </main>
