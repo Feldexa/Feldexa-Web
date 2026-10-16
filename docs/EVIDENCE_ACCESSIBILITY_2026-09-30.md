@@ -19,3 +19,5 @@ Base: fe7ed766fb999522603b836f4fa4f73d9196328c (Feldexa/Feldexa-Web main)
 - Contrast spot-checks: muted 5.00:1 / 5.21:1; petrol links 6.20:1 / 6.47:1.
 
 This evidence accompanies the unmerged review PR for this branch. It is not a publication or release-completion claim.
+
+*Update 2026-10-11: this branch's review PR merged as Feldexa-Web PR #3 (merge commit 64fe9a4), and PR #7 merged as a75cca0, which is the current main. The "unmerged" wording above describes the state on 2026-09-30 and is superseded.*
