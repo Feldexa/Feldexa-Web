@@ -2,54 +2,55 @@
 
 Scope: the machine-readable contract, the deterministic checker, and a headed-browser measurement of
 the published page. This note records what was run and what was observed on the revision that
-contains it (commit SHA recorded in the pull-request comment for this change).
+contains it (the commit SHA is recorded in the pull-request comment for this change).
 
-Nothing here is a release claim. The site still describes the app as in development, which is
-correct while `Feldexa/Feldexa` has no published release.
+Nothing here is a release claim. The site still describes the app as in development, which is correct
+while `Feldexa/Feldexa` has no published release.
 
 ## 1. Deterministic checker
 
-Command (repository root): `python3 tools/verify_site.py`
+Command (repository root): `python3 docs/verify/verify_site.py`
 
-Observed: **45 checks: 44 pass, 0 fail, 1 skip** on the change; **44 checks: 43 pass, 0 fail, 1 skip** before the inline favicon was added. The skip is `layout.viewport_matrix`, which needs a
+Observed: **52 checks: 51 pass, 0 fail, 1 skip**. The skip is `layout.viewport_matrix`, which needs a
 browser and is measured separately in §3; it is reported as `SKIP`, never as a pass.
 
-Command: `python3 tools/verify_site.py --base origin/main`
+Command: `python3 docs/verify/verify_site.py --base origin/main`
 
-Observed: `mutation.changed_paths` reports every path changed against `origin/main` (committed and
-uncommitted) and confirms each one is inside `allowed_write_paths` and outside
-`forbidden_write_paths`.
+Observed: **54 checks: 53 pass, 0 fail, 1 skip**. `mutation.changed_paths` reports 7 changed paths,
+each checked against the contract at `origin/main`; `mutation.contract_delta` reports the single
+allowlist entry this change adds (`AGENTS.md`, the policy authority).
 
-The checker validates the `AGENTS.md` contract block (schema, types, version, canonical remote against
-`origin`, default branch, root and shadowing policy names, release status, claims policy, tracker and
-paid-infrastructure flags), the checkout root, the absence of a nested copy of this repository, and
-the absence of a second contract authority. It then serves the repository and checks the served page:
-doctype, `lang`, title, viewport, description, skip link target, `main` landmark, labelled `nav`s,
-one `h1`, heading order and tag balance, internal links and anchors, no third-party resources, no
-tracker signatures, focus styles, responsive rule, declared-pair contrast, relative font units, and
-the public claims against `release_status`.
+The checker validates the `AGENTS.md` contract block (schema, types, version, repository identity,
+canonical remote against `origin`, default branch, root and shadowing policy names, release status,
+claims policy, tracker and paid-infrastructure flags), the checkout root, the absence of a nested copy
+of this repository, and the absence of a second contract authority. It then serves the repository and
+checks the served page: doctype, `lang`, title, viewport, description, skip link addressed at the
+`main` landmark, one parsed `<main>`, labelled `nav`s, one `h1` first, heading order and tag balance,
+anchors with a target and a name, unique ids, internal links and anchors, local resources inside the
+checkout, no third-party resource of any kind, no meta refresh, no tracker signatures in HTML/CSS/JS,
+a focus style that is neither missing nor removed, a skip link that is not hidden, a responsive rule,
+declared-pair contrast, relative font units, and the public claims against `release_status`.
 
 ## 2. Negative tests
 
-Command: `python3 tools/verify_site_selftest.py`
+Command: `python3 docs/verify/verify_site_selftest.py`
 
-Observed: **13 cases: 13 pass, 0 fail**. Each case copies the repository, applies one violation and
-asserts the reason code appears with a non-zero exit:
+Observed: **44 cases (42 violations, 1 clean baseline, 1 accepted control): 44 pass, 0 fail**.
 
-| Case | Reason code |
+Each violation case copies the repository, applies exactly one change and asserts the reason code
+appears with a non-zero exit. The cases cover the bypasses an independent review found in an earlier
+revision of this checker, so they cannot silently return:
+
+| Area | Cases and reason codes |
 |---|---|
-| premature release claim | `CLAIM_PREMATURE_RELEASE` |
-| removed skip link | `SKIP_LINK_NOT_FIRST` |
-| third-party script | `EXTERNAL_RESOURCE` |
-| tracker script | `TRACKER_DETECTED` |
-| low-contrast token | `CONTRAST_BELOW_MIN` |
-| skipped heading level | `HEADING_ORDER_SKIP` |
-| missing contract | `CONTRACT_FILE_MISSING` |
-| broken internal link | `INTERNAL_LINK_BROKEN` |
-| remote mismatch | `GIT_REMOTE_MISMATCH` |
-| nested project root | `NESTED_PROJECT_ROOT` |
-| duplicate contract authority | `CONFIGURATION_SHADOWED` |
-| write outside the mutation boundary | `MUTATION_OUTSIDE_BOUNDARY` |
+| Public claims | store anchor while unreleased, store URL in a meta attribute, German call to action → `CLAIM_PREMATURE_RELEASE` |
+| Accessibility | removed skip link, skip link to the wrong target → `SKIP_LINK_NOT_FIRST`; commented-out `<main>` → `MAIN_LANDMARK_MISSING`; skip link hidden by CSS → `SKIP_LINK_HIDDEN`; focus outline removed → `FOCUS_STYLE_REMOVED`; anchor without `href` → `LINK_WITHOUT_HREF`; link without a name → `LINK_WITHOUT_NAME`; duplicate id → `DUPLICATE_ID`; unlabelled nav → `NAV_UNLABELLED`; skipped heading → `HEADING_ORDER_SKIP`; mismatched heading tags → `HEADING_TAG_MISMATCH` |
+| Links | broken internal link → `INTERNAL_LINK_BROKEN` |
+| Third-party loads | script, `///` script, rel-token-list stylesheet, CSS `url()`, CSS `@import`, meta refresh, `<base>`, `srcset`, video poster → `EXTERNAL_RESOURCE`; inline tracker → `TRACKER_DETECTED` |
+| Contrast | direct token, `var()` chain, `var()` fallback, 8-digit hex → `CONTRAST_BELOW_MIN`; `font:` shorthand → `PX_FONT_SIZE` |
+| Contract | missing contract → `CONTRACT_FILE_MISSING`; remote mismatch → `GIT_REMOTE_MISMATCH`; origin removed → `GIT_REMOTE_MISSING`; repository mismatch → `CONTRACT_REPOSITORY_MISMATCH`; `contract_version: true` → `CONTRACT_VERSION_UNSUPPORTED`; non-string remote → `CONTRACT_REMOTE_INVALID` |
+| Project identity | nested checkout, nested copy without `.git` → `NESTED_PROJECT_ROOT`; contract copied to `docs/AGENTS.md` and to `AGENTS.md.bak` → `CONFIGURATION_SHADOWED` |
+| Mutation boundary | a write outside the boundary, and a change that adds `assets/**` to the allowlist and writes there → `MUTATION_OUTSIDE_BOUNDARY` (both checked against the base ref) |
 
 Enforcement classification: **`VALIDATOR_AVAILABLE`, not `HOOK_ENFORCED`.** `.github/workflows/**` is
 forbidden by the contract, so nothing runs the checker automatically; a green run is evidence that the
@@ -66,21 +67,22 @@ session. Pages measured: the locally served repository and the live site.
 | Text elements measured for contrast | 49 | 49 |
 | Elements below 4.5:1 (or 3:1 when large) | 0 | 0 |
 | Third-party network requests | 0 | 0 |
-| Console errors | 0 after the favicon fix | 1× 404 favicon (pre-publication revision) |
-| Skip link on first Tab | visible at 16/16 px, 3 px solid outline | same |
+| Console errors | 0 after the inline favicon was added | 1× 404 for `/favicon.ico` (pre-publication revision) |
+| Skip link on the first Tab | visible at 16/16 px with a 3 px solid outline | same |
 | Heading count | 7 | 7 |
 
 The live page at the time of measurement was `767b68b`, which predates the inline favicon added by
-this change; its 404 is the browser's automatic `/favicon.ico` request and is exactly what the
-favicon fixes. The live site is re-measured after publication (§5).
+this change; its 404 is the browser's automatic `/favicon.ico` request, which the favicon fixes. The
+live site is re-measured after publication (§5).
 
-Design limits recorded honestly: the page is light-only (`color-scheme: light`); a `prefers-color-scheme:
-dark` browser still receives the light design by decision, not by accident. No dark theme is claimed.
+Design limits recorded honestly: the page is light-only (`color-scheme: light`); a browser that
+prefers a dark scheme still receives the light design by decision, not by accident. No dark theme is
+claimed.
 
 ## 4. What was not measured here
 
 - TalkBack, rotor and screen-reader announcement behaviour: this is a static page without app
-  semantics; only DOM-level landmarks, heading order and focus were measured.
+  semantics; only DOM-level landmarks, heading order, focus and computed colours were measured.
 - Automated axe/WCAG rule engines: none is installed and no dependency is added. The checks above are
   the project's own; they are not a substitute for a full audit.
 - The app itself: this repository cannot produce evidence about app behaviour.
@@ -90,7 +92,7 @@ dark` browser still receives the light design by decision, not by accident. No d
 After the merge to `main` and the GitHub Pages deployment completes, the live page is checked again:
 
 ```
-python3 tools/verify_site.py --url https://feldexa.github.io/Feldexa-Web/
+python3 docs/verify/verify_site.py --url https://feldexa.github.io/Feldexa-Web/
 ```
 
 The result is recorded in the pull-request comment and in the issue closing comment, with the
@@ -103,7 +105,7 @@ workstation was performed and recorded here only as status, never as contents:
 
 | Item | Status | How it was established |
 |---|---|---|
-| Project-local contract present and parsed | `PASS` | `tools/verify_site.py` |
+| Project-local contract present and parsed | `PASS` | `docs/verify/verify_site.py` |
 | Contract carried by exactly one file | `PASS` | `contract.single_authority` |
 | Checkout is the Git root, no nested copy | `PASS` | `contract.root_identity`, `contract.no_nested_root` |
 | Project-specific global instructions/skills for this repository | none found | a bounded search of the installed harness configuration directories for this project's name returned no match; the only global skill present is a generic, unrelated one |
@@ -112,3 +114,14 @@ workstation was performed and recorded here only as status, never as contents:
 
 Cross-host configuration gaps stay explicit follow-up work: this repository cannot audit a host it
 does not run on, and must not claim to.
+
+## 7. Review history
+
+An independent review of the first revision (`095286a`) rejected it with eight blocking findings:
+claims were read from text only, the mutation boundary could be widened by the change under review,
+several third-party loads and tracker placements were not seen, contrast resolution could be bypassed
+by `var()` chains, a duplicate contract was ignored when its filename contained `AGENTS.md`, the
+`repository` field was never checked, accessibility checks were presence-only, and this note's numbers
+did not match the commands. Each was repaired and each repair has a negative case in §2; the tooling
+moved to `docs/` so the change needs no widening of the boundary it is checked against. The repaired
+head was re-reviewed before merge.

@@ -86,7 +86,7 @@ CHECKS = [
     "contract.claims_policy", "contract.no_trackers", "contract.no_paid_infrastructure",
     "contract.root_identity", "contract.no_nested_root", "contract.single_authority",
     "mutation.changed_paths", "mutation.contract_delta",
-    "page.fetch", "html.doctype", "html.lang", "page.title", "html.viewport", "html.description",
+    "page.fetch", "page.check_error", "html.doctype", "html.lang", "page.title", "html.viewport", "html.description",
     "a11y.main_landmark", "a11y.main_targetable", "a11y.skip_link", "a11y.nav_labels",
     "a11y.heading_h1", "a11y.heading_order", "a11y.heading_markup", "a11y.heading_text",
     "a11y.link_href", "a11y.link_name", "a11y.duplicate_id",
@@ -1076,7 +1076,8 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
                "no meta refresh" if not redirects else f"meta refresh present: {redirects}",
                "META_REFRESH_REDIRECT")
 
-    surfaces = [html] + page.styles + [text for _, text in css_texts] + page.scripts
+    surfaces = [html] + page.styles + [text for _, text in css_texts] + \
+        ["".join(chunk) for chunk in page.scripts]
     hits = sorted({pattern for pattern in TRACKER_PATTERNS
                    for surface in surfaces if re.search(pattern, surface, re.IGNORECASE)})
     report.add("privacy.no_trackers", not hits,
@@ -1262,11 +1263,14 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     server = None
     try:
-        if args.url:
-            check_page(report, args.url, None, contract, args.check_external)
-        else:
-            base_url, server = serve(repo_root)
-            check_page(report, base_url, repo_root, contract, args.check_external)
+        try:
+            if args.url:
+                check_page(report, args.url, None, contract, args.check_external)
+            else:
+                base_url, server = serve(repo_root)
+                check_page(report, base_url, repo_root, contract, args.check_external)
+        except Exception as exc:  # a checker crash is a failed run, never a silent pass
+            report.add("page.check_error", False, f"{type(exc).__name__}: {exc}", "VERIFIER_ERROR")
     finally:
         if server is not None:
             server.shutdown()

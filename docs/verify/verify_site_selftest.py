@@ -372,7 +372,8 @@ def main() -> int:
             shutil.rmtree(tmp, ignore_errors=True)
 
     total = len(CASES) + 1
-    print(f"\n{total} cases ({len(CASES)} violations, 1 baseline, 1 control): "
+    violations = len(CASES) - 1  # the last case is the accepted control
+    print(f"\n{total} cases ({violations} violations, 1 baseline, 1 control): "
           f"{total - failures} pass, {failures} fail")
     return 0 if failures == 0 else 1
 

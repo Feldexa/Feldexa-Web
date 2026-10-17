@@ -29,11 +29,11 @@ Planned freemium model with optional one-time watermark-free export. No subscrip
 
 The site has no build step. Its checks are dependency-free and executable:
 
-- `python3 tools/verify_site.py` — contract schema, served page, accessibility baseline, contrast,
-  internal links, tracker and third-party-resource scan, and the public claims against the declared
-  release status.
-- `python3 tools/verify_site_selftest.py` — proves each check fails when the violation it guards
-  against is introduced.
+- `python3 docs/verify/verify_site.py` — contract schema, project identity, mutation boundary,
+  served-page accessibility baseline, contrast, internal links, tracker and third-party-resource
+  scan, and the public claims against the declared release status.
+- `python3 docs/verify/verify_site_selftest.py` — 42 violation cases, a clean baseline and one
+  accepted control; each violation case asserts the reason code appears with a non-zero exit.
 - `git diff --check` — whitespace hygiene.
 
 Feldexa is developed privately. This repository contains public-safe product information only.
