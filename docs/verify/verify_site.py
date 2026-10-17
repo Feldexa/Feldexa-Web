@@ -422,7 +422,7 @@ def _root_and_authority(repo_root: Path, canonical: str | None) -> list[tuple[st
             rel = directory.relative_to(repo_root)
         except ValueError:
             continue
-        if len(rel.parts) > 3 or any(part in {".git", "build", "node_modules", "docs"} for part in rel.parts):
+        if len(rel.parts) > 6 or any(part in {".git", "build", "node_modules", ".gradle"} for part in rel.parts):
             continue
         if (directory / ".git").exists():
             origin = _git(directory, "remote", "get-url", "origin")
@@ -472,11 +472,21 @@ def changed_paths(repo_root: Path, base: str) -> list[str] | None:
     committed = _git(repo_root, "diff", "--name-only", f"{base}...HEAD")
     if committed is None:
         return None
+    status = _git(repo_root, "status", "--porcelain", "--ignored=matching")
+    ignored = []
+    for line in (status or "").splitlines():
+        if line.startswith("!! "):
+            candidate = line[3:].strip().rstrip("/")
+            # Derived/runtime directories are not changes to this project.
+            if candidate.split("/")[0] in {".git", ".agent-methods", "node_modules", "build", ".gradle"}:
+                continue
+            ignored.append(candidate)
     parts = [
         committed,
         _git(repo_root, "diff", "--name-only", "HEAD") or "",
         _git(repo_root, "diff", "--name-only", "--cached", "HEAD") or "",
         _git(repo_root, "ls-files", "--others", "--exclude-standard") or "",
+        "\n".join(ignored),
     ]
     return sorted({p for p in "\n".join(parts).splitlines() if p.strip()})
 
@@ -512,21 +522,43 @@ def check_mutation(report: Report, repo_root: Path, base: str, contract: dict) -
                 problems.append(f"{path} (forbidden by {base})")
             elif not any(match_path(p, path) for p in allowed):
                 problems.append(f"{path} (outside allowed_write_paths at {base})")
+        escapes = []
+        for path in paths:
+            target = repo_root / path
+            if target.is_symlink():
+                resolved = target.resolve()
+                try:
+                    resolved.relative_to(repo_root)
+                except ValueError:
+                    escapes.append(f"{path} → {resolved} (outside the checkout)")
+        if escapes:
+            problems.append("symlink escape: " + "; ".join(escapes))
         report.add("mutation.changed_paths", not problems,
                    f"{len(paths)} changed path(s) checked against {base}:AGENTS.md"
                    if not problems else "; ".join(problems),
                    "MUTATION_OUTSIDE_BOUNDARY")
 
-        head_allowed = contract.get("allowed_write_paths") or []
-        head_forbidden = contract.get("forbidden_write_paths") or []
-        added = sorted(set(head_allowed) - set(allowed))
-        removed = sorted(set(allowed) - set(head_allowed))
-        newly_forbidden = sorted(set(head_forbidden) - set(forbidden))
-        newly_permitted = sorted(set(forbidden) - set(head_forbidden))
-        report.add("mutation.contract_delta", True,
-                   f"allowed +{added or 'none'} -{removed or 'none'}; "
-                   f"forbidden +{newly_forbidden or 'none'} -{newly_permitted or 'none'}",
-                   "CONTRACT_DELTA_UNREPORTED")
+        delta = []
+        added = sorted(set(contract.get("allowed_write_paths") or []) - set(allowed))
+        removed = sorted(set(allowed) - set(contract.get("allowed_write_paths") or []))
+        if added or removed:
+            delta.append(f"allowed +{added or 'none'} -{removed or 'none'}")
+        newly_forbidden = sorted(set(contract.get("forbidden_write_paths") or []) - set(forbidden))
+        newly_permitted = sorted(set(forbidden) - set(contract.get("forbidden_write_paths") or []))
+        if newly_forbidden or newly_permitted:
+            delta.append(f"forbidden +{newly_forbidden or 'none'} -{newly_permitted or 'none'}")
+        for key in ("release_status", "default_branch", "no_trackers", "no_paid_infrastructure"):
+            if baseline.get(key) != contract.get(key):
+                delta.append(f"{key}: {baseline.get(key)!r} → {contract.get(key)!r}")
+        base_checks = baseline.get("required_checks") or []
+        head_checks = contract.get("required_checks") or []
+        if base_checks != head_checks:
+            delta.append(f"required_checks {len(base_checks)} → {len(head_checks)}")
+        if delta:
+            report.add("mutation.contract_delta", True, "; ".join(delta), "CONTRACT_DELTA_UNREPORTED")
+        else:
+            report.add("mutation.contract_delta", None, f"contract unchanged at {base} and head",
+                       "CONTRACT_DELTA_UNREPORTED")
 
 
 # --------------------------------------------------------------------------------------------------
@@ -541,13 +573,20 @@ RESOURCE_RELS = {
 URL_ATTRS = {
     "script": ["src"], "img": ["src", "srcset"], "source": ["src", "srcset"],
     "video": ["poster", "src"], "audio": ["src"], "track": ["src"], "iframe": ["src"],
-    "embed": ["src"], "object": ["data"], "input": ["src"], "body": ["background"],
+    "embed": ["src"], "object": ["data"], "input": ["src", "formaction"],
+    "button": ["formaction"], "form": ["action"], "body": ["background"],
 }
 TRACKER_PATTERNS = [
     r"googletagmanager", r"google-analytics", r"\bgtag\s*\(", r"\bfbq\s*\(", r"connect\.facebook\.net",
     r"matomo", r"piwik", r"plausible\.io", r"hotjar", r"segment\.(?:com|io)", r"mixpanel",
     r"amplitude", r"clarity\.ms", r"doubleclick", r"analytics\.js",
 ]
+
+
+VOID = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+    "source", "track", "wbr",
+}
 
 
 class Page(HTMLParser):
@@ -565,6 +604,7 @@ class Page(HTMLParser):
         self.heading_mismatch: list[str] = []
         self._heading: str | None = None
         self._heading_text: list[str] = []
+        self._heading_label: str | None = None
         self.ids: list[str] = []
         self.main_attrs: list[dict[str, str | None]] = []
         self.tags: list[tuple[str, dict[str, str | None]]] = []
@@ -576,8 +616,13 @@ class Page(HTMLParser):
         self._script_buf: list[str] = []
         self._anchor: dict | None = None
         self._anchor_text: list[str] = []
+        self._stack: list[str] = []
         self.text_parts: list[str] = []
         self.attr_values: list[str] = []
+
+    def _inert(self) -> bool:
+        """True inside content that a browser does not render or does not parse as markup."""
+        return any(tag in {"template", "noscript"} for tag in self._stack)
 
     def handle_decl(self, decl: str) -> None:
         if decl.lower().startswith("doctype"):
@@ -585,6 +630,12 @@ class Page(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr = {k: v for k, v in attrs}
+        if tag not in VOID:
+            self._stack.append(tag)
+        inert = self._inert()
+        if inert:
+            # Still track the stack, but never record inert content as a landmark, heading or link.
+            return
         self.tags.append((tag, attr))
         self.attr_values.extend(v for v in attr.values() if v)
         if attr.get("id"):
@@ -613,8 +664,20 @@ class Page(HTMLParser):
         elif tag in HEADING_TAGS:
             self._heading = tag
             self._heading_text = []
+            self._heading_label = attr.get("aria-label")
+        # An image's alternative text is the accessible name / heading content it contributes.
+        if tag == "img" and (attr.get("alt") or "").strip():
+            if self._heading is not None:
+                self._heading_text.append(attr["alt"].strip())
+            if self._anchor is not None:
+                self._anchor_text.append(attr["alt"].strip())
 
     def handle_endtag(self, tag: str) -> None:
+        if tag in self._stack:
+            while self._stack:
+                popped = self._stack.pop()
+                if popped == tag:
+                    break
         if tag == "title":
             self._in_title = False
         elif tag == "style" and self._in_style:
@@ -636,10 +699,14 @@ class Page(HTMLParser):
         elif tag in HEADING_TAGS and self._heading is not None:
             if tag != self._heading:
                 self.heading_mismatch.append(f"<{self._heading}> closed by </{tag}>")
-            self.headings.append((self._heading, "".join(self._heading_text).strip()))
+            text = " ".join(part for part in ("".join(self._heading_text).strip(), self._heading_label or "") if part)
+            self.headings.append((self._heading, text.strip()))
             self._heading = None
+            self._heading_label = None
 
     def handle_data(self, data: str) -> None:
+        if self._inert():
+            return
         if self._in_title:
             self.title += data
         if self._heading:
@@ -789,9 +856,15 @@ def css_tokens(css: str) -> dict[str, str]:
     return resolved
 
 
+def strip_comments(css: str) -> str:
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+
+
 def declarations(css: str, prop: str) -> list[str]:
-    return [m.group(1).strip()
-            for m in re.finditer(r"(?<![-\w])(?:^|[;{]\s*)" + prop + r"\s*:\s*([^;}{]+)", css)]
+    """Every declaration of `prop`, case-insensitively, comments removed first."""
+    text = strip_comments(css)
+    return [m.group(1).strip() for m in re.finditer(
+        r"(?<![A-Za-z0-9_-])(?:^|[;{])\s*" + prop + r"\s*:\s*([^;}{]+)", text, re.IGNORECASE)]
 
 
 def relative_luminance(rgb: tuple[float, float, float] | tuple[float, ...]) -> float:
@@ -816,66 +889,111 @@ def composite(fg, bg):
 
 def analyse_contrast(css: str) -> tuple[bool, str]:
     tokens = css_tokens(css)
-    text_colors: list[tuple[str, tuple[float, float, float, float]]] = []
-    unresolved: list[str] = []
-    for value in declarations(css, "color"):
-        resolved = resolve_vars(value, tokens)
-        color = parse_color(resolved) if resolved is not None else None
-        if color is None:
-            unresolved.append(value)
-        else:
-            text_colors.append((value, color))
+    text = strip_comments(css)
 
-    background_colors: list[tuple[float, float, float, float]] = []
-    for prop in ("background", "background-color"):
-        for value in declarations(css, prop):
-            resolved = resolve_vars(value, tokens)
-            if resolved is None:
-                unresolved.append(value)
-                continue
-            for candidate in re.findall(
-                    r"#[0-9A-Fa-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+", resolved.lower()):
-                color = parse_color(candidate)
-                if color is not None:
-                    background_colors.append(color)
+    def colors_in(value: str):
+        resolved = resolve_vars(value, tokens)
+        if resolved is None:
+            return None
+        found = []
+        for candidate in re.findall(
+                r"#[0-9A-Fa-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+", resolved.lower()):
+            color = parse_color(candidate)
+            if color is not None:
+                found.append(color)
+        return found
+
+    unresolved: list[str] = []
+    rules: list[dict] = []
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", text):
+        selectors = [part.strip() for part in match.group(1).split(",") if part.strip()]
+        body = match.group(2)
+        text_colors = []
+        backgrounds = []
+        for decl in re.finditer(r"(?<![A-Za-z0-9_-])color\s*:\s*([^;}{]+)", body, re.IGNORECASE):
+            colors = colors_in(decl.group(1))
+            if colors is None:
+                unresolved.append(decl.group(1).strip())
+            else:
+                text_colors.extend(colors)
+        for decl in re.finditer(r"(?<![A-Za-z0-9_-])background(?:-color)?\s*:\s*([^;}{]+)",
+                                body, re.IGNORECASE):
+            colors = colors_in(decl.group(1))
+            if colors is None:
+                unresolved.append(decl.group(1).strip())
+            else:
+                backgrounds.extend(colors)
+        if selectors:
+            rules.append({"selectors": selectors, "text": text_colors, "backgrounds": backgrounds})
 
     if unresolved:
         return False, f"unresolvable colour value(s): {sorted(set(unresolved))}"
 
     base_stops: list[tuple[float, float, float]] = [(255.0, 255.0, 255.0)]
-    for value in declarations(css, "background"):
-        resolved = resolve_vars(value, tokens) or ""
-        stops = [parse_color(c) for c in re.findall(r"#[0-9A-Fa-f]{3,8}|rgba?\([^)]*\)", resolved)]
-        opaque = [s for s in stops if s and s[3] == 1]
-        if "gradient" in resolved and len(opaque) >= 2:
-            base_stops = [(s[0], s[1], s[2]) for s in opaque]
+    for rule in rules:
+        for selector in rule["selectors"]:
+            if not re.search(r"(?:^|\s)(?:html|body)(?:\s|$|\.|#|:)", selector):
+                continue
+            if not re.search(r"(?i)gradient", text):
+                continue
+            for match in re.finditer(r"(?<![A-Za-z0-9_-])background\s*:\s*([^;}{]+)", text, re.IGNORECASE):
+                resolved = resolve_vars(match.group(1), tokens) or ""
+                stops = [parse_color(c) for c in re.findall(r"#[0-9A-Fa-f]{3,8}|rgba?\([^)]*\)", resolved)]
+                opaque = [s for s in stops if s and s[3] == 1]
+                if "gradient" in resolved and len(opaque) >= 2:
+                    base_stops = [(s[0], s[1], s[2]) for s in opaque]
+                    break
             break
 
-    surfaces: set[tuple[float, float, float]] = set()
-    for background in background_colors:
-        for base in base_stops:
-            surfaces.add(composite(background, base))
-    if not surfaces:
-        surfaces = set(base_stops)
+    def surfaces(backgrounds) -> set[tuple[float, float, float]]:
+        out = set()
+        for background in backgrounds:
+            for base in base_stops:
+                out.add(composite(background, base))
+        return out
 
-    if not text_colors:
-        return False, "no resolvable text colour is declared in the stylesheet"
+    page_surfaces = surfaces([c for rule in rules for c in rule["backgrounds"] if
+                              any(re.search(r"(?:^|\s)(?:html|body)(?:\s|$)", sel) for sel in rule["selectors"])])
+    fallback_surfaces = page_surfaces or surfaces([(255.0, 255.0, 255.0, 1.0)])
+
+    def selector_tokens(selector: str) -> list[str]:
+        return [t for t in re.split(r"\s+|>|\+|~", selector) if t]
 
     worst = None
-    for declaration, color in text_colors:
-        for surface in surfaces:
-            text = composite(color, surface) if color[3] < 1 else color[:3]
-            ratio = contrast_ratio(text, surface)
-            if worst is None or ratio < worst[0]:
-                worst = (ratio, declaration, surface)
-    assert worst is not None
+    measured = 0
+    for rule in rules:
+        if not rule["text"]:
+            continue
+        if rule["backgrounds"]:
+            candidates = surfaces(rule["backgrounds"])
+        else:
+            ancestors = []
+            for other in rules:
+                if not other["backgrounds"] or other is rule:
+                    continue
+                for ancestor_selector in other["selectors"]:
+                    ancestor_tokens = selector_tokens(ancestor_selector)
+                    for selector in rule["selectors"]:
+                        tokens = selector_tokens(selector)
+                        if ancestor_tokens and all(t in tokens for t in ancestor_tokens):
+                            ancestors.extend(other["backgrounds"])
+            candidates = surfaces(ancestors) if ancestors else fallback_surfaces
+        for color in rule["text"]:
+            for surface in candidates:
+                text_color = composite(color, surface) if color[3] < 1 else color[:3]
+                ratio = contrast_ratio(text_color, surface)
+                measured += 1
+                if worst is None or ratio < worst[0]:
+                    worst = (ratio, surface)
+    if worst is None:
+        return False, "no resolvable text colour is declared in the stylesheet"
     if worst[0] < 4.5:
         return False, (
-            f"lowest measured contrast {worst[0]:.2f}:1 for {worst[1]!r} on rgb"
-            f"({round(worst[2][0])},{round(worst[2][1])},{round(worst[2][2])}); the 4.5:1 floor is "
-            "applied to every declared colour (the 3:1 large-text allowance is never used to pass)"
+            f"lowest measured contrast {worst[0]:.2f}:1 on rgb"
+            f"({round(worst[1][0])},{round(worst[1][1])},{round(worst[1][2])}); the 4.5:1 floor is "
+            "applied to every declared pair (the 3:1 large-text allowance is never used to pass)"
         )
-    return True, f"lowest measured contrast {worst[0]:.2f}:1 across {len(text_colors)} text colours"
+    return True, f"lowest measured contrast {worst[0]:.2f}:1 over {measured} declared pair(s)"
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1004,10 +1122,24 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
                    "visible keyboard focus style declared", "FOCUS_STYLE_MISSING")
         removed = []
         for block in re.finditer(r"([^{}]*:(?:focus|focus-visible)[^{}]*)\{([^}]*)\}", css):
-            body = block.group(2)
-            if re.search(r"outline\s*:\s*(?:none|0)(?:px)?\b", body) or re.search(
-                    r"outline-width\s*:\s*0", body):
-                removed.append(block.group(1).strip()[:60])
+            body = strip_comments(block.group(2))
+            reasons = []
+            for match in re.finditer(r"(?<![A-Za-z0-9_-])outline\s*:\s*([^;}{]+)", body, re.IGNORECASE):
+                value = match.group(1).strip().lower()
+                if re.search(r"\bnone\b|\bhidden\b|(?:^|\s)0(?:px)?(?:\s|$)", value) \
+                        or "transparent" in value:
+                    reasons.append(f"outline: {value}")
+            for match in re.finditer(r"(?<![A-Za-z0-9_-])outline-(style|color|width)\s*:\s*([^;}{]+)",
+                                     body, re.IGNORECASE):
+                prop, value = match.group(1).lower(), match.group(2).strip().lower()
+                if prop == "style" and re.search(r"none|hidden", value):
+                    reasons.append(f"outline-style: {value}")
+                elif prop == "color" and "transparent" in value:
+                    reasons.append(f"outline-color: {value}")
+                elif prop == "width" and re.search(r"(?:^|\s)0(?:px)?(?:\s|$)", value):
+                    reasons.append(f"outline-width: {value}")
+            if reasons:
+                removed.append(f"{block.group(1).strip()[:50]} → {', '.join(reasons)}")
         report.add("css.focus_not_removed", not removed,
                    "focus outline is not removed" if not removed else f"outline removed in {removed}",
                    "FOCUS_STYLE_REMOVED")
@@ -1165,15 +1297,18 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
     surface = page.surface_text
     hrefs = " ".join((a.get("href") or "") for a in page.anchors)
     store_link = bool(re.search(r"play\.google\.com/store", surface + " " + hrefs, re.IGNORECASE))
-    cta = [m.group(0) for m in re.finditer(
-        r"(?i)jetzt herunterladen|hier herunterladen|jetzt installieren|jetzt im play store|"
-        r"ab sofort (?:erhältlich|verfügbar)|jetzt verfügbar|get it on google play|download now|"
-        r"available now|im play store (?:erhältlich|verfügbar)", surface)]
-    premature = [m for m in cta
-                 if not re.search(r"(?i)nicht|not|kein", surface[max(0, surface.find(m) - 30):surface.find(m)])]
+    premature = []
+    for match in re.finditer(
+            r"(?i)jetzt herunterladen|hier herunterladen|jetzt installieren|jetzt im play store|"
+            r"ab sofort (?:erhältlich|verfügbar)|jetzt verfügbar|get it on google play|download now|"
+            r"available now|im play store (?:erhältlich|verfügbar)", surface):
+        prefix = surface[max(0, match.start() - 20):match.start()]
+        if not re.search(r"(?i)\b(?:nicht|kein\w*|not|no)\b[^.!?]*$", prefix):
+            premature.append(match.group(0))
     if release_status == "unreleased":
         says_in_development = bool(re.search(
-            r"in Entwicklung|in development|noch nicht zum Download|not yet available", surface,
+            r"in Entwicklung|in development|noch nicht (?:zum Download|veröffentlicht|verfügbar)|"
+            r"not yet (?:available|released)", surface,
             re.IGNORECASE))
         report.add("claims.unreleased_status", says_in_development,
                    "page states the app is in development / not downloadable", "CLAIM_STATUS_MISSING")

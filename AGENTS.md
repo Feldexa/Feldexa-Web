@@ -50,8 +50,9 @@ explicitly requires it.
 
 1. `python3 docs/verify/verify_site.py` runs the executable form of every check below against the
    served page and the contract, and prints one line per check with a stable reason code.
-   `python3 docs/verify/verify_site_selftest.py` proves the checks can actually fail: 42 violation
-   cases, one clean baseline and one accepted control.
+   `python3 docs/verify/verify_site_selftest.py` proves the checks can actually fail: 53 violation
+   cases, one clean baseline and four accepted controls. Add `--base origin/main` to check the
+   mutation boundary against the contract at that ref (a change cannot widen its own boundary).
 2. `python3 -m http.server 8765 --bind 127.0.0.1` from the repository root, then load
    `http://127.0.0.1:8765/`. There is no build step and no test framework: the served page *is* the
    artifact, so it must be fetched and inspected, not assumed.

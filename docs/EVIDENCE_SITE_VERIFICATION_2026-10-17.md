@@ -35,7 +35,7 @@ declared-pair contrast, relative font units, and the public claims against `rele
 
 Command: `python3 docs/verify/verify_site_selftest.py`
 
-Observed: **44 cases (42 violations, 1 clean baseline, 1 accepted control): 44 pass, 0 fail**.
+Observed: **58 cases (53 violations, 1 clean baseline, 4 accepted controls): 58 pass, 0 fail**.
 
 Each violation case copies the repository, applies exactly one change and asserts the reason code
 appears with a non-zero exit. The cases cover the bypasses an independent review found in an earlier
@@ -50,7 +50,16 @@ revision of this checker, so they cannot silently return:
 | Contrast | direct token, `var()` chain, `var()` fallback, 8-digit hex → `CONTRAST_BELOW_MIN`; `font:` shorthand → `PX_FONT_SIZE` |
 | Contract | missing contract → `CONTRACT_FILE_MISSING`; remote mismatch → `GIT_REMOTE_MISMATCH`; origin removed → `GIT_REMOTE_MISSING`; repository mismatch → `CONTRACT_REPOSITORY_MISMATCH`; `contract_version: true` → `CONTRACT_VERSION_UNSUPPORTED`; non-string remote → `CONTRACT_REMOTE_INVALID` |
 | Project identity | nested checkout, nested copy without `.git` → `NESTED_PROJECT_ROOT`; contract copied to `docs/AGENTS.md` and to `AGENTS.md.bak` → `CONFIGURATION_SHADOWED` |
-| Mutation boundary | a write outside the boundary, and a change that adds `assets/**` to the allowlist and writes there → `MUTATION_OUTSIDE_BOUNDARY` (both checked against the base ref) |
+| Mutation boundary | a write outside the boundary, a change that adds `assets/**` to the allowlist and writes there, an ignored (`git/info/exclude`) write, and a symlink escaping the checkout → `MUTATION_OUTSIDE_BOUNDARY` (all checked against the base ref) |
+| Inert markup | `<main>` inside `<template>` and inside `<noscript>` → `MAIN_LANDMARK_MISSING` |
+| Focus visibility | `outline: 3px solid transparent`, `outline-style: none` → `FOCUS_STYLE_REMOVED` |
+| CSS parsing | a colour behind a comment, and an uppercase `COLOR` property → `CONTRAST_BELOW_MIN` |
+| Claim negation | a call to action with a distant unrelated "Nicht" → `CLAIM_PREMATURE_RELEASE` |
+| Form submission | an external `<form action>` → `EXTERNAL_RESOURCE` |
+
+Accepted controls (must not be rejected): a reworded but accurate status phrase, a declared
+white-on-petrol colour pair, image `alt` text naming a heading and a link, and a documentation change
+inside the mutation boundary.
 
 Enforcement classification: **`VALIDATOR_AVAILABLE`, not `HOOK_ENFORCED`.** `.github/workflows/**` is
 forbidden by the contract, so nothing runs the checker automatically; a green run is evidence that the
@@ -59,7 +68,10 @@ checker ran on that revision.
 ## 3. Headed browser measurement
 
 Browser: Chromium 1248 from the host Playwright cache, launched **headed** on the operator's display
-session. Pages measured: the locally served repository and the live site.
+session. The measurement script is committed at `docs/verify/web_headed_evidence.js`; it needs a
+Chromium binary (`CHROME_PATH`) and a local `playwright-core` (`PW`), neither of which the repository
+installs, so the run is reproducible on a host that has them. Pages measured: the locally served
+repository and the live site.
 
 | Measurement | Local | Live (`https://feldexa.github.io/Feldexa-Web/`) |
 |---|---|---|
@@ -117,11 +129,19 @@ does not run on, and must not claim to.
 
 ## 7. Review history
 
-An independent review of the first revision (`095286a`) rejected it with eight blocking findings:
+Two independent reviews were required. The first (of `095286a`) rejected the change with eight
+blocking findings:
 claims were read from text only, the mutation boundary could be widened by the change under review,
 several third-party loads and tracker placements were not seen, contrast resolution could be bypassed
 by `var()` chains, a duplicate contract was ignored when its filename contained `AGENTS.md`, the
 `repository` field was never checked, accessibility checks were presence-only, and this note's numbers
 did not match the commands. Each was repaired and each repair has a negative case in §2; the tooling
-moved to `docs/` so the change needs no widening of the boundary it is checked against. The repaired
-head was re-reviewed before merge.
+moved to `docs/` so the change needs no widening of the boundary it is checked against. The second
+review (of `2d89f73`) confirmed those eight repaired and found five more, all of the same class — a
+PASS for something not measured: inert `<main>` inside `<template>`/`<noscript>`, a transparent or
+`outline-style: none` focus ring, a declared colour hidden behind a CSS comment or written as
+uppercase `COLOR`, a call to action with an unrelated distant negation, and a forbidden write hidden
+by `git/info/exclude`. Each is repaired with a negative case in §2, and the checker now also reports
+declared-pair contrast without rejecting a legitimate white-on-accent pair. The head was re-reviewed
+again after these repairs; the exact SHA of every reviewed head is recorded in the pull-request
+comment, which is the only place it can be stated without guessing it in advance.

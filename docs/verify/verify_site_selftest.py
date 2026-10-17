@@ -285,6 +285,76 @@ def case_control_docs_change(repo: Path) -> None:
     git(repo, "commit", "-q", "-m", "docs change inside the boundary")
 
 
+
+def case_main_in_template(repo: Path) -> None:
+    edit(repo, "index.html", '<main id="main-content" class="shell">',
+         '<template><main id="main-content" class="shell"></main></template><div class="shell">')
+    edit(repo, "index.html", "</main>", "</div>")
+
+
+def case_main_in_noscript(repo: Path) -> None:
+    edit(repo, "index.html", '<main id="main-content" class="shell">',
+         '<noscript><main id="main-content" class="shell"></main></noscript><div class="shell">')
+    edit(repo, "index.html", "</main>", "</div>")
+
+
+def case_focus_transparent(repo: Path) -> None:
+    append(repo, "styles.css", "\na:focus-visible { outline: 3px solid transparent; }\n")
+
+
+def case_focus_style_none(repo: Path) -> None:
+    append(repo, "styles.css", "\na:focus-visible { outline-style: none; }\n")
+
+
+def case_contrast_after_comment(repo: Path) -> None:
+    append(repo, "styles.css", "\nsection p { /* muted */ color: #e9f4f4; }\n")
+
+
+def case_contrast_uppercase(repo: Path) -> None:
+    append(repo, "styles.css", "\nsection p { COLOR: #e9f4f4; }\n")
+
+
+def case_cta_distant_negation(repo: Path) -> None:
+    edit(repo, "index.html", "<footer>", "<p>Nicht nur das. Jetzt herunterladen.</p><footer>")
+
+
+def case_form_action_external(repo: Path) -> None:
+    edit(repo, "index.html", "<footer>",
+         '<form action="https://collect.example.com/x"><input name="a"></form><footer>')
+
+
+def case_ignored_forbidden_write(repo: Path) -> None:
+    (repo / "app").mkdir()
+    (repo / "app" / "main.py").write_text("print('x')\n", encoding="utf-8")
+    exclude = repo / ".git" / "info" / "exclude"
+    exclude.write_text(exclude.read_text(encoding="utf-8") + "app/\n", encoding="utf-8")
+
+
+def case_nested_copy_under_docs(repo: Path) -> None:
+    nested = repo / "docs" / "clone"
+    nested.mkdir(parents=True)
+    shutil.copy(repo / "index.html", nested / "index.html")
+    shutil.copy(repo / "styles.css", nested / "styles.css")
+
+
+def case_symlink_escape(repo: Path) -> None:
+    (repo / "docs" / "out").symlink_to("/etc/hostname")
+
+
+def case_control_reworded_status(repo: Path) -> None:
+    edit(repo, "index.html", "noch nicht zum Download verfügbar", "noch nicht veröffentlicht")
+
+
+def case_control_declared_pair(repo: Path) -> None:
+    append(repo, "styles.css", "\n.badge { color: #ffffff; background-color: #0c6874; }\n")
+
+
+def case_control_img_alt_names(repo: Path) -> None:
+    edit(repo, "index.html", '<h2 id="preis-h">Preis: geplant ohne Abo</h2>',
+         '<h2 id="preis-h"><img alt="Preis: geplant ohne Abo" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></h2>')
+    edit(repo, "index.html", "<footer>",
+         '<footer><a href="#preis"><img alt="Zum Preis" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></a>')
+
 CASES = [
     ("store anchor while unreleased", case_store_anchor_unreleased, "CLAIM_PREMATURE_RELEASE", ()),
     ("store URL in meta content", case_store_url_in_meta, "CLAIM_PREMATURE_RELEASE", ()),
@@ -329,7 +399,22 @@ CASES = [
     ("write outside the boundary", case_write_outside_boundary, "MUTATION_OUTSIDE_BOUNDARY", ("--base", "main")),
     ("widen the boundary and write inside it", case_widen_own_boundary, "MUTATION_OUTSIDE_BOUNDARY", ("--base", "main")),
     ("control: docs change inside the boundary", case_control_docs_change, None, ("--base", "main")),
+    ("main inside <template>", case_main_in_template, "MAIN_LANDMARK_MISSING", ()),
+    ("main inside <noscript>", case_main_in_noscript, "MAIN_LANDMARK_MISSING", ()),
+    ("focus ring transparent", case_focus_transparent, "FOCUS_STYLE_REMOVED", ()),
+    ("focus outline-style none", case_focus_style_none, "FOCUS_STYLE_REMOVED", ()),
+    ("colour after a CSS comment", case_contrast_after_comment, "CONTRAST_BELOW_MIN", ()),
+    ("uppercase COLOR property", case_contrast_uppercase, "CONTRAST_BELOW_MIN", ()),
+    ("call to action with a distant negation", case_cta_distant_negation, "CLAIM_PREMATURE_RELEASE", ()),
+    ("external form action", case_form_action_external, "EXTERNAL_RESOURCE", ()),
+    ("ignored write outside the boundary", case_ignored_forbidden_write, "MUTATION_OUTSIDE_BOUNDARY", ("--base", "main")),
+    ("nested copy under docs/", case_nested_copy_under_docs, "NESTED_PROJECT_ROOT", ()),
+    ("symlink escaping the checkout", case_symlink_escape, "MUTATION_OUTSIDE_BOUNDARY", ("--base", "main")),
+    ("control: reworded status phrase", case_control_reworded_status, None, ()),
+    ("control: declared colour pair", case_control_declared_pair, None, ()),
+    ("control: image alternative text names", case_control_img_alt_names, None, ()),
 ]
+
 
 
 def main() -> int:
@@ -372,8 +457,8 @@ def main() -> int:
             shutil.rmtree(tmp, ignore_errors=True)
 
     total = len(CASES) + 1
-    violations = len(CASES) - 1  # the last case is the accepted control
-    print(f"\n{total} cases ({violations} violations, 1 baseline, 1 control): "
+    violations = len(CASES) - 4  # the last four cases are accepted controls
+    print(f"\n{total} cases ({violations} violations, 1 baseline, 4 controls): "
           f"{total - failures} pass, {failures} fail")
     return 0 if failures == 0 else 1
 
