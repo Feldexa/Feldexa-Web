@@ -22,6 +22,19 @@ Planned freemium model with optional one-time watermark-free export. No subscrip
 
 - [Privacy Principles](docs/privacy-principles.md)
 - [Public Roadmap](docs/roadmap.md)
+- [Contract schema](docs/contract-schema.md)
 - [GitHub Wiki](https://github.com/Feldexa/Feldexa-Web/wiki)
+
+## Verification
+
+The site has no build step. Its checks are dependency-free and executable:
+
+- `python3 docs/verify/verify_site.py` — contract schema, project identity, served-page
+  accessibility baseline, contrast, internal links, tracker and third-party-resource scan, and the
+  public claims against the declared release status. Add `--base origin/main` to enforce the
+  mutation boundary against the contract at that ref.
+- `python3 docs/verify/verify_site_selftest.py` — 60 violation cases, a clean baseline and eight
+  accepted controls; each violation case asserts the reason code appears with a non-zero exit.
+- `git diff --check` — whitespace hygiene.
 
 Feldexa is developed privately. This repository contains public-safe product information only.
