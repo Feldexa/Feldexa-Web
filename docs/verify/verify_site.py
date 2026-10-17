@@ -1151,6 +1151,11 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
         css = "\n".join(text for _, text in css_texts)
         report.add("css.focus_visible", re.search(r":focus-visible\s*\{", css) is not None,
                    "visible keyboard focus style declared", "FOCUS_STYLE_MISSING")
+        visible_focus_positions = [
+            m.start() for m in re.finditer(r"[^{}]*:focus(?:-visible)?[^{}]*\{[^}]*\}", css)
+            if not re.search(r"outline\s*:\s*(?:none|0)", m.group(0), re.IGNORECASE)
+            and "transparent" not in m.group(0).lower()
+        ]
         removed = []
         for block in re.finditer(
                 r"([^{}]*(?::focus|:focus-visible|^|\s)(?:a|button|input|select|textarea|summary|\[tabindex\])"
@@ -1175,7 +1180,7 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
                         reasons.append(f"outline-color: {value}")
                 elif prop == "width" and re.search(r"(?:^|\s)0(?:[a-z%]+)?(?:\s|$)", value):
                     reasons.append(f"outline-width: {value}")
-            if reasons:
+            if reasons and not any(position > block.start() for position in visible_focus_positions):
                 removed.append(f"{block.group(1).strip()[:50]} → {', '.join(reasons)}")
         report.add("css.focus_not_removed", not removed,
                    "focus outline is not removed" if not removed else f"outline removed in {removed}",
@@ -1341,7 +1346,8 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
             r"available now|im play store (?:erhältlich|verfügbar)", surface):
         prefix = surface[max(0, match.start() - 40):match.start()]
         clause = re.split(r"(?i)[.!?;,]\s+", prefix)[-1]
-        if not re.search(r"(?i)\b(?:nicht|kein\w*|not|no)\b", clause):
+        suffix = re.split(r"(?i)[.!?;,]\s+", surface[match.end():match.end() + 40])[0]
+        if not re.search(r"(?i)\b(?:nicht|kein\w*|not|no)\b", clause + " " + suffix):
             premature.append(match.group(0))
     if release_status == "unreleased":
         says_in_development = bool(re.search(

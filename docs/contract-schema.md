@@ -61,8 +61,9 @@ them.
 ### Mutation boundary
 
 `mutation.changed_paths` runs with `--base <ref>` and checks every changed path — committed against
-the base, staged, unstaged, untracked **and ignored** (a forbidden write cannot hide by being ignored)
-— against the contract **at that base ref**, read with `git show <ref>:AGENTS.md`. A change therefore
+the base, staged, unstaged, untracked and ignored — against the contract **at that base ref**. For
+ignored paths only `forbidden_write_paths` is enforced: a host-local artifact such as `.DS_Store` is
+not a project write, while an ignored write under `app/` or `secrets/` is still refused., read with `git show <ref>:AGENTS.md`. A change therefore
 cannot widen its own boundary. Changed symlinks are resolved and refused if they leave the checkout.
 `AGENTS.md` itself is allowed because it is the policy authority; the delta it applies is reported by
 `mutation.contract_delta` — allowlist additions and removals, forbidden-list changes, a
@@ -118,5 +119,5 @@ reviewer sees every contract change explicitly. With no change it reports `SKIP`
 - **Files under `.git/` are outside the boundary model.** Git hooks are not tracked paths and the
   checker does not read them.
 - **Negative tests prove the checks can fail.** `python3 docs/verify/verify_site_selftest.py` copies
-  the repository, applies one violation per case (53 cases), plus a clean baseline and four accepted
+  the repository, applies one violation per case (60 cases), plus a clean baseline and eight accepted
   controls, and asserts the reason code appears with a non-zero exit.

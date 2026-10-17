@@ -397,6 +397,10 @@ def case_control_ignored_artifact(repo: Path) -> None:
     exclude.write_text(exclude.read_text(encoding="utf-8") + ".DS_Store\n", encoding="utf-8")
 
 
+def case_control_negated_after_cta(repo: Path) -> None:
+    edit(repo, "index.html", "<footer>", "<p>Jetzt herunterladen ist nicht möglich.</p><footer>")
+
+
 def case_control_reworded_status_only(repo: Path) -> None:
     edit(repo, "index.html", "FELDEXA · ANDROID · IN ENTWICKLUNG", "FELDEXA · ANDROID · IN ARBEIT")
     edit(repo, "index.html", "Status: in Entwicklung", "Status: in Arbeit")
@@ -470,6 +474,7 @@ CASES = [
     ("focus colour alpha 0", case_focus_alpha_zero, "FOCUS_STYLE_REMOVED", ()),
     ("focus colour hex alpha 00", case_focus_hex_alpha_zero, "FOCUS_STYLE_REMOVED", ()),
     ("control: ignored host artifact", case_control_ignored_artifact, None, ("--base", "main")),
+    ("control: negation after the call to action", case_control_negated_after_cta, None, ()),
     ("control: only the reworded status phrase", case_control_reworded_status_only, None, ()),
 ]
 
@@ -516,8 +521,8 @@ def main() -> int:
             shutil.rmtree(tmp, ignore_errors=True)
 
     total = len(CASES) + 1
-    violations = len(CASES) - 7  # the accepted controls are at the end of the list
-    print(f"\n{total} cases ({violations} violations, 1 baseline, 7 controls): "
+    violations = len(CASES) - 8  # the accepted controls are at the end of the list
+    print(f"\n{total} cases ({violations} violations, 1 baseline, 8 controls): "
           f"{total - failures} pass, {failures} fail")
     return 0 if failures == 0 else 1
 

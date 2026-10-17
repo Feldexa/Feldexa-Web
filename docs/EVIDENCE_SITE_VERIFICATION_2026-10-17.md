@@ -16,7 +16,7 @@ browser and is measured separately in §3; it is reported as `SKIP`, never as a 
 
 Command: `python3 docs/verify/verify_site.py --base origin/main`
 
-Observed: **54 checks: 53 pass, 0 fail, 1 skip**. `mutation.changed_paths` reports 7 changed paths,
+Observed: **54 checks: 53 pass, 0 fail, 1 skip**. `mutation.changed_paths` reports 8 changed paths,
 each checked against the contract at `origin/main`; `mutation.contract_delta` reports every contract change: the allowlist entry this change adds
 (`AGENTS.md`, the policy authority), `release_status: None → 'unreleased'` and
 `required_checks 4 → 6`.
@@ -36,7 +36,7 @@ declared-pair contrast, relative font units, and the public claims against `rele
 
 Command: `python3 docs/verify/verify_site_selftest.py`
 
-Observed: **68 cases (60 violations, 1 clean baseline, 7 accepted controls): 68 pass, 0 fail**.
+Observed: **69 cases (60 violations, 1 clean baseline, 8 accepted controls): 69 pass, 0 fail**.
 
 Each violation case copies the repository, applies exactly one change and asserts the reason code
 appears with a non-zero exit. The cases cover the bypasses an independent review found in an earlier
