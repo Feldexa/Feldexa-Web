@@ -13,7 +13,7 @@ Allowed here:
 
 - Static site content: `index.html`, `styles.css`, `docs/*.md`, `README.md`.
 - Accessibility, wording and layout improvements that keep the site's claims true.
-- Evidence notes under `docs/`.
+- Evidence notes and dependency-free verification tooling under `docs/`.
 
 Not allowed here:
 
@@ -42,15 +42,16 @@ explicitly requires it.
 | `index.html` | The entire published landing page. Single page, no build step. |
 | `styles.css` | The only stylesheet. Design tokens are the `:root` custom properties. |
 | `docs/` | Public documents: roadmap, privacy principles, evidence notes. |
+| `docs/verify/` | Dependency-free verification tooling (not a published page). |
 | `README.md` | Repository introduction and status. |
-| `tools/` | Dependency-free verification tooling; not published. |
 | `AGENTS.md` | This contract, including the machine-readable block. |
 
 ## Required checks before a change is considered done
 
-1. `python3 tools/verify_site.py` runs the executable form of every check below against the served
-   page and the contract, and prints one line per check with a stable reason code.
-   `python3 tools/verify_site_selftest.py` proves the checks can actually fail.
+1. `python3 docs/verify/verify_site.py` runs the executable form of every check below against the
+   served page and the contract, and prints one line per check with a stable reason code.
+   `python3 docs/verify/verify_site_selftest.py` proves the checks can actually fail: 42 violation
+   cases, one clean baseline and one accepted control.
 2. `python3 -m http.server 8765 --bind 127.0.0.1` from the repository root, then load
    `http://127.0.0.1:8765/`. There is no build step and no test framework: the served page *is* the
    artifact, so it must be fetched and inspected, not assumed.
@@ -94,9 +95,9 @@ allowed_write_paths:
   - styles.css
   - docs/**
   - README.md
-  - tools/**
   - AGENTS.md
-  - .gitignore
+# `allowed_write_paths` is enforced against the contract at the base ref (`--base`), so a change
+# cannot widen its own boundary; `AGENTS.md` itself is the policy authority and its delta is reported.
 forbidden_write_paths:
   - .github/workflows/**
   - "**/*.env"
@@ -106,7 +107,8 @@ forbidden_write_paths:
 # calls to action; flipping it to `released` is a release action that requires the published app.
 release_status: unreleased
 required_checks:
-  - python3 tools/verify_site.py (contract, served page, accessibility, contrast, links, claims)
+  - python3 docs/verify/verify_site.py (contract, served page, accessibility, contrast, links, claims)
+  - python3 docs/verify/verify_site.py --base origin/main (mutation boundary at the base ref)
   - serve the repository root over http and load the page
   - accessibility baseline (skip link, main landmark, labelled nav, heading order, visible focus)
   - contrast >= 4.5:1 body text, >= 3:1 large text
