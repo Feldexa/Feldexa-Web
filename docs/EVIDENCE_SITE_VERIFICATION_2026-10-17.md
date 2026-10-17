@@ -17,8 +17,9 @@ browser and is measured separately in §3; it is reported as `SKIP`, never as a 
 Command: `python3 docs/verify/verify_site.py --base origin/main`
 
 Observed: **54 checks: 53 pass, 0 fail, 1 skip**. `mutation.changed_paths` reports 7 changed paths,
-each checked against the contract at `origin/main`; `mutation.contract_delta` reports the single
-allowlist entry this change adds (`AGENTS.md`, the policy authority).
+each checked against the contract at `origin/main`; `mutation.contract_delta` reports every contract change: the allowlist entry this change adds
+(`AGENTS.md`, the policy authority), `release_status: None → 'unreleased'` and
+`required_checks 4 → 6`.
 
 The checker validates the `AGENTS.md` contract block (schema, types, version, repository identity,
 canonical remote against `origin`, default branch, root and shadowing policy names, release status,
@@ -35,7 +36,7 @@ declared-pair contrast, relative font units, and the public claims against `rele
 
 Command: `python3 docs/verify/verify_site_selftest.py`
 
-Observed: **58 cases (53 violations, 1 clean baseline, 4 accepted controls): 58 pass, 0 fail**.
+Observed: **68 cases (60 violations, 1 clean baseline, 7 accepted controls): 68 pass, 0 fail**.
 
 Each violation case copies the repository, applies exactly one change and asserts the reason code
 appears with a non-zero exit. The cases cover the bypasses an independent review found in an earlier
@@ -142,6 +143,9 @@ PASS for something not measured: inert `<main>` inside `<template>`/`<noscript>`
 `outline-style: none` focus ring, a declared colour hidden behind a CSS comment or written as
 uppercase `COLOR`, a call to action with an unrelated distant negation, and a forbidden write hidden
 by `git/info/exclude`. Each is repaired with a negative case in §2, and the checker now also reports
-declared-pair contrast without rejecting a legitimate white-on-accent pair. The head was re-reviewed
-again after these repairs; the exact SHA of every reviewed head is recorded in the pull-request
-comment, which is the only place it can be stated without guessing it in advance.
+declared-pair contrast without rejecting a legitimate white-on-accent pair. A third review then found four more of the same class — a `hidden`/`aria-hidden`/`style="display:none"`
+`<main>`, a focus ring removed by a non-`:focus` selector, a comma-negated call to action, and a
+false failure on host-local ignored artifacts — and those are repaired with cases in §2 as well, plus
+zero-unit/alpha-zero outline spellings and a control for an ignored `.DS_Store`. The exact SHA of
+every reviewed head is recorded in the pull-request comment, which is the only place it can be stated
+without guessing it in advance.

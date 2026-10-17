@@ -355,6 +355,54 @@ def case_control_img_alt_names(repo: Path) -> None:
     edit(repo, "index.html", "<footer>",
          '<footer><a href="#preis"><img alt="Zum Preis" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></a>')
 
+
+def case_main_hidden_attribute(repo: Path) -> None:
+    edit(repo, "index.html", '<main id="main-content" class="shell">',
+         '<main id="main-content" class="shell" hidden>')
+
+
+def case_main_aria_hidden(repo: Path) -> None:
+    edit(repo, "index.html", '<main id="main-content" class="shell">',
+         '<main id="main-content" class="shell" aria-hidden="true">')
+
+
+def case_main_style_hidden(repo: Path) -> None:
+    edit(repo, "index.html", '<main id="main-content" class="shell">',
+         '<main id="main-content" class="shell" style="display: none">')
+
+
+def case_focus_removed_by_element_rule(repo: Path) -> None:
+    append(repo, "styles.css", "\n.anchors a { outline: none; }\n")
+
+
+def case_cta_comma_negation(repo: Path) -> None:
+    edit(repo, "index.html", "<footer>", "<p>Nicht nur das, jetzt herunterladen.</p><footer>")
+
+
+def case_focus_zero_em(repo: Path) -> None:
+    append(repo, "styles.css", "\na:focus-visible { outline-width: 0em; }\n")
+
+
+def case_focus_alpha_zero(repo: Path) -> None:
+    append(repo, "styles.css", "\na:focus-visible { outline-color: rgba(12, 104, 116, 0); }\n")
+
+
+def case_focus_hex_alpha_zero(repo: Path) -> None:
+    append(repo, "styles.css", "\na:focus-visible { outline: 3px solid #0c687400; }\n")
+
+
+def case_control_ignored_artifact(repo: Path) -> None:
+    (repo / ".DS_Store").write_text("", encoding="utf-8")
+    exclude = repo / ".git" / "info" / "exclude"
+    exclude.write_text(exclude.read_text(encoding="utf-8") + ".DS_Store\n", encoding="utf-8")
+
+
+def case_control_reworded_status_only(repo: Path) -> None:
+    edit(repo, "index.html", "FELDEXA · ANDROID · IN ENTWICKLUNG", "FELDEXA · ANDROID · IN ARBEIT")
+    edit(repo, "index.html", "Status: in Entwicklung", "Status: in Arbeit")
+    edit(repo, "index.html", "noch nicht zum Download verfügbar", "noch nicht veröffentlicht")
+    edit(repo, "index.html", "Feldexa ist in Entwicklung", "Feldexa ist in Arbeit")
+
 CASES = [
     ("store anchor while unreleased", case_store_anchor_unreleased, "CLAIM_PREMATURE_RELEASE", ()),
     ("store URL in meta content", case_store_url_in_meta, "CLAIM_PREMATURE_RELEASE", ()),
@@ -413,7 +461,18 @@ CASES = [
     ("control: reworded status phrase", case_control_reworded_status, None, ()),
     ("control: declared colour pair", case_control_declared_pair, None, ()),
     ("control: image alternative text names", case_control_img_alt_names, None, ()),
+    ("main hidden attribute", case_main_hidden_attribute, "MAIN_LANDMARK_MISSING", ()),
+    ("main aria-hidden", case_main_aria_hidden, "MAIN_LANDMARK_MISSING", ()),
+    ("main display none", case_main_style_hidden, "MAIN_LANDMARK_MISSING", ()),
+    ("focus ring removed by a plain element rule", case_focus_removed_by_element_rule, "FOCUS_STYLE_REMOVED", ()),
+    ("call to action after a comma negation", case_cta_comma_negation, "CLAIM_PREMATURE_RELEASE", ()),
+    ("focus width 0em", case_focus_zero_em, "FOCUS_STYLE_REMOVED", ()),
+    ("focus colour alpha 0", case_focus_alpha_zero, "FOCUS_STYLE_REMOVED", ()),
+    ("focus colour hex alpha 00", case_focus_hex_alpha_zero, "FOCUS_STYLE_REMOVED", ()),
+    ("control: ignored host artifact", case_control_ignored_artifact, None, ("--base", "main")),
+    ("control: only the reworded status phrase", case_control_reworded_status_only, None, ()),
 ]
+
 
 
 
@@ -457,8 +516,8 @@ def main() -> int:
             shutil.rmtree(tmp, ignore_errors=True)
 
     total = len(CASES) + 1
-    violations = len(CASES) - 4  # the last four cases are accepted controls
-    print(f"\n{total} cases ({violations} violations, 1 baseline, 4 controls): "
+    violations = len(CASES) - 7  # the accepted controls are at the end of the list
+    print(f"\n{total} cases ({violations} violations, 1 baseline, 7 controls): "
           f"{total - failures} pass, {failures} fail")
     return 0 if failures == 0 else 1
 

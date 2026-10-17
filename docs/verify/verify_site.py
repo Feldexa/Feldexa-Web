@@ -480,7 +480,14 @@ def changed_paths(repo_root: Path, base: str) -> list[str] | None:
             # Derived/runtime directories are not changes to this project.
             if candidate.split("/")[0] in {".git", ".agent-methods", "node_modules", "build", ".gradle"}:
                 continue
-            ignored.append(candidate)
+            target = repo_root / candidate
+            if target.is_dir():
+                for child in list(target.rglob("*"))[:500]:
+                    if child.is_file():
+                        ignored.append(str(child.relative_to(repo_root)))
+            else:
+                ignored.append(candidate)
+    check_mutation.ignored = set(ignored)
     parts = [
         committed,
         _git(repo_root, "diff", "--name-only", "HEAD") or "",
@@ -515,11 +522,16 @@ def check_mutation(report: Report, repo_root: Path, base: str, contract: dict) -
         allowed = baseline.get("allowed_write_paths") or []
         forbidden = baseline.get("forbidden_write_paths") or []
         problems = []
+        ignored_paths = set(getattr(check_mutation, "ignored", set()))
         for path in paths:
             if path == "AGENTS.md":
                 continue  # the policy authority; its delta is reported by mutation.contract_delta
             if any(match_path(p, path) for p in forbidden):
                 problems.append(f"{path} (forbidden by {base})")
+            elif path in ignored_paths:
+                # Host-local ignored artifacts (.DS_Store, virtualenvs, tool caches) are not project
+                # writes; a forbidden path above is still a violation, an unlisted one is not.
+                continue
             elif not any(match_path(p, path) for p in allowed):
                 problems.append(f"{path} (outside allowed_write_paths at {base})")
         escapes = []
@@ -617,12 +629,23 @@ class Page(HTMLParser):
         self._anchor: dict | None = None
         self._anchor_text: list[str] = []
         self._stack: list[str] = []
+        self._hidden_heading = 0
         self.text_parts: list[str] = []
         self.attr_values: list[str] = []
 
     def _inert(self) -> bool:
         """True inside content that a browser does not render or does not parse as markup."""
         return any(tag in {"template", "noscript"} for tag in self._stack)
+
+    @staticmethod
+    def _hidden(attr: dict) -> bool:
+        """True when the element itself is not rendered."""
+        if "hidden" in attr:
+            return True
+        if (attr.get("aria-hidden") or "").lower() == "true":
+            return True
+        style = (attr.get("style") or "").replace(" ", "").lower()
+        return "display:none" in style or "visibility:hidden" in style
 
     def handle_decl(self, decl: str) -> None:
         if decl.lower().startswith("doctype"):
@@ -636,6 +659,7 @@ class Page(HTMLParser):
         if inert:
             # Still track the stack, but never record inert content as a landmark, heading or link.
             return
+        hidden = self._hidden(attr)
         self.tags.append((tag, attr))
         self.attr_values.extend(v for v in attr.values() if v)
         if attr.get("id"):
@@ -652,9 +676,11 @@ class Page(HTMLParser):
             self._anchor = attr
             self._anchor_text = []
         elif tag == "nav":
-            self.navs.append(attr)
+            if not hidden:
+                self.navs.append(attr)
         elif tag == "main":
-            self.main_attrs.append(attr)
+            if not hidden:
+                self.main_attrs.append(attr)
         elif tag == "script":
             self._in_script = True
             self._script_buf = []
@@ -662,9 +688,12 @@ class Page(HTMLParser):
             self._in_style = True
             self._style_buf = []
         elif tag in HEADING_TAGS:
-            self._heading = tag
-            self._heading_text = []
-            self._heading_label = attr.get("aria-label")
+            if hidden:
+                self._hidden_heading += 1
+            else:
+                self._heading = tag
+                self._heading_text = []
+                self._heading_label = attr.get("aria-label")
         # An image's alternative text is the accessible name / heading content it contributes.
         if tag == "img" and (attr.get("alt") or "").strip():
             if self._heading is not None:
@@ -696,6 +725,8 @@ class Page(HTMLParser):
                 }
             )
             self._anchor = None
+        elif tag in HEADING_TAGS and self._hidden_heading:
+            self._hidden_heading -= 1
         elif tag in HEADING_TAGS and self._heading is not None:
             if tag != self._heading:
                 self.heading_mismatch.append(f"<{self._heading}> closed by </{tag}>")
@@ -1121,22 +1152,28 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
         report.add("css.focus_visible", re.search(r":focus-visible\s*\{", css) is not None,
                    "visible keyboard focus style declared", "FOCUS_STYLE_MISSING")
         removed = []
-        for block in re.finditer(r"([^{}]*:(?:focus|focus-visible)[^{}]*)\{([^}]*)\}", css):
+        for block in re.finditer(
+                r"([^{}]*(?::focus|:focus-visible|^|\s)(?:a|button|input|select|textarea|summary|\[tabindex\])"
+                r"[^{}]*)\{([^}]*)\}", css):
             body = strip_comments(block.group(2))
             reasons = []
             for match in re.finditer(r"(?<![A-Za-z0-9_-])outline\s*:\s*([^;}{]+)", body, re.IGNORECASE):
                 value = match.group(1).strip().lower()
-                if re.search(r"\bnone\b|\bhidden\b|(?:^|\s)0(?:px)?(?:\s|$)", value) \
-                        or "transparent" in value:
+                zero_color = any(parse_color(c) is not None and parse_color(c)[3] == 0
+                                 for c in re.findall(r"#[0-9A-Fa-f]{3,8}|rgba?\([^)]*\)", value))
+                if re.search(r"\bnone\b|\bhidden\b|(?:^|\s)0(?:[a-z%]+)?(?:\s|$)", value) \
+                        or "transparent" in value or zero_color:
                     reasons.append(f"outline: {value}")
             for match in re.finditer(r"(?<![A-Za-z0-9_-])outline-(style|color|width)\s*:\s*([^;}{]+)",
                                      body, re.IGNORECASE):
                 prop, value = match.group(1).lower(), match.group(2).strip().lower()
                 if prop == "style" and re.search(r"none|hidden", value):
                     reasons.append(f"outline-style: {value}")
-                elif prop == "color" and "transparent" in value:
-                    reasons.append(f"outline-color: {value}")
-                elif prop == "width" and re.search(r"(?:^|\s)0(?:px)?(?:\s|$)", value):
+                elif prop == "color":
+                    parsed = parse_color(re.sub(r"\s*!important\s*$", "", value).strip())
+                    if "transparent" in value or (parsed is not None and parsed[3] == 0):
+                        reasons.append(f"outline-color: {value}")
+                elif prop == "width" and re.search(r"(?:^|\s)0(?:[a-z%]+)?(?:\s|$)", value):
                     reasons.append(f"outline-width: {value}")
             if reasons:
                 removed.append(f"{block.group(1).strip()[:50]} → {', '.join(reasons)}")
@@ -1302,8 +1339,9 @@ def check_page(report: Report, base_url: str, repo_root: Path | None, contract: 
             r"(?i)jetzt herunterladen|hier herunterladen|jetzt installieren|jetzt im play store|"
             r"ab sofort (?:erhältlich|verfügbar)|jetzt verfügbar|get it on google play|download now|"
             r"available now|im play store (?:erhältlich|verfügbar)", surface):
-        prefix = surface[max(0, match.start() - 20):match.start()]
-        if not re.search(r"(?i)\b(?:nicht|kein\w*|not|no)\b[^.!?]*$", prefix):
+        prefix = surface[max(0, match.start() - 40):match.start()]
+        clause = re.split(r"(?i)[.!?;,]\s+", prefix)[-1]
+        if not re.search(r"(?i)\b(?:nicht|kein\w*|not|no)\b", clause):
             premature.append(match.group(0))
     if release_status == "unreleased":
         says_in_development = bool(re.search(

@@ -4,10 +4,12 @@
 // Headed browser measurement for the Feldexa-Web evidence note. Host-local tooling, not a required
 // check: it needs `playwright-core` and a Chromium binary, neither of which the repository installs.
 //
-//   CHROME_PATH=/path/to/chrome PW=/path/to/playwright-core node docs/verify/web_headed_evidence.js <out-dir>
+//   CHROME_PATH=/path/to/chrome PW=/path/to/playwright-core \
+//     node docs/verify/web_headed_evidence.js <out-dir>
 //
 // It writes one PNG per page and width plus `report.json` and prints a compact summary. It launches
-// the browser headed (not headless) against the operator's display.
+// the browser headed (not headless) against the operator's display. The output directory is required
+// and must be outside the repository, so a run cannot widen the tracked tree.
 
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +21,11 @@ if (!CHROME || !PW) {
   process.exit(2);
 }
 const { chromium } = require(PW);
-const OUT = process.argv[2] || 'web-evidence';
+const OUT = process.argv[2];
+if (!OUT) {
+  console.error('usage: node docs/verify/web_headed_evidence.js <out-dir outside the repository>');
+  process.exit(2);
+}
 const URLS = {
   local: process.env.LOCAL_URL || 'http://127.0.0.1:8765/',
   live: process.env.LIVE_URL || 'https://feldexa.github.io/Feldexa-Web/',
