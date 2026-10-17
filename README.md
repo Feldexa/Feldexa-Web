@@ -33,7 +33,7 @@ The site has no build step. Its checks are dependency-free and executable:
   accessibility baseline, contrast, internal links, tracker and third-party-resource scan, and the
   public claims against the declared release status. Add `--base origin/main` to enforce the
   mutation boundary against the contract at that ref.
-- `python3 docs/verify/verify_site_selftest.py` — 60 violation cases, a clean baseline and seven
+- `python3 docs/verify/verify_site_selftest.py` — 60 violation cases, a clean baseline and eight
   accepted controls; each violation case asserts the reason code appears with a non-zero exit.
 - `git diff --check` — whitespace hygiene.
 
