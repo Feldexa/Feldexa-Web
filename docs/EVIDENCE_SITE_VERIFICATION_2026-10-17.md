@@ -111,6 +111,35 @@ python3 docs/verify/verify_site.py --url https://feldexa.github.io/Feldexa-Web/
 The result is recorded in the pull-request comment and in the issue closing comment, with the
 deployment's exact live revision.
 
+### Re-measured 2026-10-18 (live revision `235722c`)
+
+The Pages API reports `status: built`, source `main`, and the newest `github-pages` deployment is
+`235722c` (created 2026-10-17T12:36:54Z), which is the current `main`. The live page and the same tree
+served locally on `127.0.0.1:8765` were measured in a **headed** Chromium 156.0.8078.4 on the operator's
+display, with the same script as §3:
+
+| Measurement | Local | Live (`https://feldexa.github.io/Feldexa-Web/`) |
+|---|---|---|
+| Revision served | working tree `235722c` | `235722c` (deployment) |
+| Horizontal overflow at 320/390/768/1024/1280/1440 px | none | none |
+| Text elements measured for contrast | 49 | 49 |
+| Elements below 4.5:1 (3:1 when large) | 0 | 0 |
+| Third-party network requests | 0 | 0 |
+| Console errors | 0 | **0** (the `/favicon.ico` 404 of §3 is gone) |
+| Skip link on the first Tab | visible, 181x42 px, 3 px solid outline | same |
+| Heading count | 7 | 7 |
+| `verify_site.py --url` | 52 pass / 0 fail / 2 skip | 51 pass / 0 fail / 1 skip (`layout.viewport_matrix`, measured headed above) |
+
+The live page still states "in Entwicklung – noch nicht zum Download verfügbar"; no store link or
+download call to action exists, so the public claim matches the app's unreleased state. The page is
+light-only by design (`color-scheme: light`), unchanged from §3.
+
+Screenshots from this run are host-local (`.tools/evidence/web-2026-10-18/`, 19 PNGs: live/local at
+320, 390, 768, 1024, 1280, 1440, the two full-height 390/1280 renders, the skip-link focus state and the
+dark-preference render) and are not committed. What this does **not** claim: an axe/WCAG audit, a
+screen-reader (TalkBack) walkthrough, or any app behaviour — it is a headed browser measurement of the
+published page.
+
 ## 6. Host and global-configuration audit (safe summary)
 
 The repository contract is project-local. A bounded audit of the harness configuration used on this
